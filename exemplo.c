@@ -5,7 +5,7 @@ int main (long int argc, char** argv) {
   void *a, *b;
 
   iniciaAlocador();               // Impressão esperada
-  imprimeMapa();                  // <vazio>
+  // imprimeMapa();                  // <vazio>
 
   a = (void *) alocaMem(10);
   imprimeMapa();                  // ################**********
@@ -13,7 +13,7 @@ int main (long int argc, char** argv) {
   imprimeMapa();                  // ################**********##############****
   liberaMem(a);
   imprimeMapa();                  // ################----------##############****
-  liberaMem(b);                   // ################----------------------------
+  // liberaMem(b);                   // ################----------------------------
                                   // ou
                                   // <vazio>
   finalizaAlocador();
