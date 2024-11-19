@@ -4,9 +4,10 @@
 	mais: .string "+"
 	menos: .string "-"
 	quebraLinha: .string "\n"
-	topoInicialHeap: .quad 0
-	topoAtualHeap: .quad 0
-	topoBlocosHeap: .quad 0
+	inicioHeap: .quad 0
+	topoBrk: .quad 0
+	topoBlocos: .quad 0
+	iniUltimoBloco: .quad 0
 .section .text
 .global iniciaAlocador
 .global finalizaAlocador
@@ -24,9 +25,11 @@ iniciaAlocador: # sem parametros
 	movq $0, %rdi
 	movq $12, %rax
 	syscall
-	movq %rax, topoInicialHeap
+	movq %rax, inicioHeap
 	subq $1, %rax
-	movq %rax, topoAtualHeap
+	movq %rax, topoBrk
+	movq %rax, topoBlocos
+	movq $0, iniUltimoBloco
 	popq %rbp
 	ret
 # =========================================================================== #
@@ -35,18 +38,18 @@ iniciaAlocador: # sem parametros
 finalizaAlocador: # sem parametros
 	pushq %rbp
 	movq %rsp, %rbp
-	movq topoInicialHeap, %rdi
+	movq inicioHeap, %rdi
 	movq $12, %rax
 	syscall
 	popq %rbp
 	ret
 # =========================================================================== #
-# Testa se endereco eh maior ou igual a topoInicialHeap    					  #
+# Testa se endereco eh maior ou igual a inicioHeap    					  #
 # =========================================================================== #
 enderecoMaiorIgualIni:
 	push %rbp
 	movq %rsp, %rbp
-	movq topoInicialHeap, %r10
+	movq inicioHeap, %r10
 	cmpq %r10, %rdi
 	jl else_enderecoMaiorIgualIni
 	movq $1, %rax
@@ -57,12 +60,12 @@ fora_enderecoMaiorIgualIni:
 	pop %rbp
 	ret
 # =========================================================================== #
-# Testa se endereco eh menor ou igual a topoAtualHeap   					  #
+# Testa se endereco eh menor ou igual a topoBrk   					  #
 # =========================================================================== #
 enderecoMenorIgualFim:
 	push %rbp
 	movq %rsp, %rbp
-	movq topoAtualHeap, %r10
+	movq topoBrk, %r10
 	cmpq %r10, %rdi
 	jg else_enderecoMenorIgualFim
 	movq $1, %rax
@@ -122,103 +125,86 @@ alocaMem: # tamanho do bloco
 	pushq %rbp
 	movq %rsp, %rbp
 	subq $16, %rsp
-	# alocaMem(0)
 	movq $0, %rax
-	cmpq $0, %rdi
+	cmpq $0, %rdi # verifica %rdi == 0
 	je return_alocaMem
-	movq topoInicialHeap, %rsi
-	movq topoAtualHeap, %rdx
+	movq inicioHeap, %rsi
+	movq topoBlocos, %rdx
 	movq $0x7fffffffffffffff, %rcx # menor
-	cmpq %rsi, %rdx
-	jg while_procurar_bloco
-	# alocacao do primeiro bloco de 4096
-	movq %rdi, -8(%rbp)
-	movq %rsi, -16(%rbp)
-	addq $4096, %rdx
-	movq %rdx, %rdi
-	movq $12, %rax
-	syscall
-	movq -8(%rbp), %rdi
-	movq -16(%rbp), %rsi
-	movq $0, (%rsi)
-	movq $4080, 8(%rsi)
-	movq %rsi, topoBlocosHeap
-while_procurar_bloco:
+loop_procurar_bloco:
 	cmpq %rdx, %rsi
-	jg fora_while_procurar_bloco
-	movq 8(%rsi), %r9 # r9 sera usado apos while caso nao encontrar bloco
+	jg fora_loop_procurar_bloco
 	cmpq $0, (%rsi)
-	jne fora_bloco_livre
-	# bloco esta livre
+	jne bloco_nao_livre
 	cmpq 8(%rsi), %rdi
-	jne bloco_livre_com_tamanho_diferente
-	# bloco encontrado com tamanho igual ao procurado
-	movq %rsi, %r8
-	jmp fora_bloco_nao_encontrado
-bloco_livre_com_tamanho_diferente:
-	cmpq 8(%rsi), %rdi
-	jg fora_bloco_com_espaco
+	jg bloco_sem_espaco
 	cmpq 8(%rsi), %rcx # compara tamanho com menor (rcx)
-	jle fora_menor_que_menor
+	jle maior_que_menor
 	movq 8(%rsi), %rcx
 	movq %rsi, %r8 # coloca endereco do bloco menor em r8
-fora_menor_que_menor:
-fora_bloco_com_espaco:
-fora_bloco_livre:
+maior_que_menor:
+bloco_sem_espaco:
+bloco_nao_livre:
+	addq 8(%rsi), %rsi
 	addq $16, %rsi
-	addq %r9, %rsi
-	jmp while_procurar_bloco
-fora_while_procurar_bloco:
+	jmp loop_procurar_bloco
+fora_loop_procurar_bloco:
 	movq $0x7fffffffffffffff, %r10
-	cmpq %r10, %r13
-	jne fora_bloco_nao_encontrado
-	movq %rsi, %r8
-	subq %r9, %r8
-	subq $16, %r8
+	cmpq %r10, %rcx
+	jne bloco_encontrado
+	movq iniUltimoBloco, %r8
+	cmpq $0, %r8
+	je ultimo_nao_livre
 	cmpq $0, (%r8)
-	jne fora_ultimo_livre
+	jne ultimo_nao_livre
 	movq 8(%r8), %r9
-	jmp while_calcula_brk
-fora_ultimo_livre:
+	jmp pre_loop_brk
+ultimo_nao_livre:
+	movq %rsi, %r8 # salva %rsi em %r8
 	movq $-16, %r9
-	movq %rsi, %r8
-while_calcula_brk:
+pre_loop_brk:
+	movq topoBrk, %r10
+	subq %rdx, %r10
+	addq %r10, %r9
+	movq $0, %r10
+loop_calcula_brk:
+	cmpq %r9, %rdi
+	jle fora_loop_calcula_brk
 	addq $4096, %rdx
 	addq $4096, %r9
-	cmpq %r9, %rdi
-	jle fora_while_calcula_brk
-	jmp while_calcula_brk
-fora_while_calcula_brk:
+	movq $1, %r10
+	jmp loop_calcula_brk
+fora_loop_calcula_brk:
+	cmpq $1, %r10
+	jne nao_atualiza_brk
 	movq %rdi, -8(%rbp)
 	movq %rdx, %rdi
 	movq $12, %rax
 	syscall
 	movq -8(%rbp), %rdi
-	movq %r9, 8(%r8)
-fora_bloco_nao_encontrado:
-	cmpq %r8, topoBlocosHeap
-	jge fora_muda_topoBlocos
-	movq %r8, topoBlocosHeap
-fora_muda_topoBlocos:
-	movq %r8, %rax
-	addq $16, %rax
-	movq $1, (%r8)
+	movq %rdx, topoBrk
+nao_atualiza_brk:
+	lea 15(%r8), %r10
+	addq %rdi, %r10
+	movq %r10, topoBlocos
+	movq %rdi, %r9
+	jmp novo_bloco
+bloco_encontrado:
 	movq 8(%r8), %r9
+novo_bloco:
+	lea 16(%r8), %rax # %r8 + 16 eh retornado
+	movq $1, (%r8)
 	movq %rdi, 8(%r8)
 	subq %rdi, %r9
 	cmpq $16, %r9
-	jle fora_divide_bloco
-	# bloco livre sera partido em dois
-	addq $16, %r8
+	jle return_alocaMem
+	addq $16, %r8 # bloco livre sera partido em dois
 	addq -8(%r8), %r8
 	movq $0, (%r8)
 	subq $16, %r9
 	movq %r9, 8(%r8)
 	jmp return_alocaMem
-fora_divide_bloco:
-	addq %r9, 8(%r8)
 return_alocaMem:
-	movq %rdx, topoAtualHeap
 	addq $16, %rsp
 	popq %rbp
 	ret
@@ -229,48 +215,44 @@ imprimeMapa: # sem parametros
 	pushq %rbp
 	movq %rsp, %rbp
 	subq $16, %rsp 
-	movq %r12, -8(%rbp)
-	movq topoBlocosHeap, %r10
-	movq topoInicialHeap, %r11
-	movq topoAtualHeap, %r12
-	cmpq %r11, %r12
-	jl return_imprimeMapa
+	movq topoBlocos, %r12
+	movq inicioHeap, %r13
 while_imprime:
-	movq $16, %r12
+	cmpq %r12, %r13
+	jg fora_while_imprime
+	movq $16, %r14
 while_asterisco:
 	movq $asterico, %rdi
 	call printf
-	dec %r12
-	cmpq $0, %r12
+	dec %r14
+	cmpq $0, %r14
 	je fora_while_asterisco
 	jmp while_asterisco
 fora_while_asterisco:
-	movq 8(%r11), %r12
-	cmpq $1, (%r11)
+	movq 8(%r13), %r14
+	cmpq $1, (%r13)
 	jne imprime_menos
 	movq $mais, %rdi
 	jmp while_mais_menos
 imprime_menos:
 	movq $menos, %rdi
 while_mais_menos:
-	cmpq $0, %r12
+	cmpq $0, %r14
 	je fora_while_mais_menos
 	movq %rdi, -16(%rbp)
 	call printf
 	movq -16(%rbp), %rdi
-	dec %r12
+	dec %r14
 	jmp while_mais_menos
 fora_while_mais_menos:
-	cmpq %r11, %r10
-	je fora_while_imprime
-	addq $16, %r11
-	addq -8(%r11), %r11
+	addq $16, %r13
+	addq -8(%r13), %r13
 	jmp while_imprime
 fora_while_imprime:
 	movq $quebraLinha, %rdi
 	call printf
 return_imprimeMapa:
-	movq -8(%rbp), %r12
 	addq $16, %rsp
 	popq %rbp
 	ret
+	

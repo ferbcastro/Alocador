@@ -10,5 +10,5 @@ $(EXE): $(OBJS)
 	@rm -f $(OBJS)
 
 $(OBJS):
-	@gcc -c exemplo.c
-	@as meuAlocador.s -o meuAlocador.o
+	@gcc -c exemplo.c -g
+	@as meuAlocador.s -o meuAlocador.o -g
