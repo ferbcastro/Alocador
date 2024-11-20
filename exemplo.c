@@ -10,11 +10,12 @@ int main (long int argc, char** argv) {
   a = (void *) alocaMem(10);
   imprimeMapa();                  // ################**********
   b = (void *) alocaMem(4);
-  imprimeMapa();                  // ################**********##############****
+  // imprimeMapa();                  // ################**********##############****
   liberaMem(a);
-  imprimeMapa();                  // ################----------##############****
-  // liberaMem(b);                   // ################----------------------------
+  // imprimeMapa();                  // ################----------##############****
+  liberaMem(b);                   // ################----------------------------
                                   // ou
                                   // <vazio>
+  // imprimeMapa();
   finalizaAlocador();
 }

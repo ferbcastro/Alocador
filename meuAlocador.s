@@ -6,7 +6,6 @@
 	quebraLinha: .string "\n"
 	inicioHeap: .quad 0
 	topoBrk: .quad 0
-	topoBlocos: .quad 0
 	iniUltimoBloco: .quad 0
 .section .text
 .global iniciaAlocador
@@ -28,7 +27,6 @@ iniciaAlocador: # sem parametros
 	movq %rax, inicioHeap
 	subq $1, %rax
 	movq %rax, topoBrk
-	movq %rax, topoBlocos
 	movq $0, iniUltimoBloco
 	popq %rbp
 	ret
@@ -129,7 +127,7 @@ alocaMem: # tamanho do bloco
 	cmpq $0, %rdi # verifica %rdi == 0
 	je return_alocaMem
 	movq inicioHeap, %rsi
-	movq topoBlocos, %rdx
+	movq topoBrk, %rdx
 	movq $0x7fffffffffffffff, %rcx # menor
 loop_procurar_bloco:
 	cmpq %rdx, %rsi
@@ -158,15 +156,10 @@ fora_loop_procurar_bloco:
 	cmpq $0, (%r8)
 	jne ultimo_nao_livre
 	movq 8(%r8), %r9
-	jmp pre_loop_brk
+	jmp loop_calcula_brk
 ultimo_nao_livre:
 	movq %rsi, %r8 # salva %rsi em %r8
 	movq $-16, %r9
-pre_loop_brk:
-	movq topoBrk, %r10
-	subq %rdx, %r10
-	addq %r10, %r9
-	movq $0, %r10
 loop_calcula_brk:
 	cmpq %r9, %rdi
 	jle fora_loop_calcula_brk
@@ -175,21 +168,16 @@ loop_calcula_brk:
 	movq $1, %r10
 	jmp loop_calcula_brk
 fora_loop_calcula_brk:
-	cmpq $1, %r10
-	jne nao_atualiza_brk
 	movq %rdi, -8(%rbp)
 	movq %rdx, %rdi
 	movq $12, %rax
 	syscall
 	movq -8(%rbp), %rdi
 	movq %rdx, topoBrk
-nao_atualiza_brk:
-	lea 15(%r8), %r10
-	addq %rdi, %r10
-	movq %r10, topoBlocos
-	movq %rdi, %r9
+	movq $1, %r10
 	jmp novo_bloco
 bloco_encontrado:
+	movq $0, %r10
 	movq 8(%r8), %r9
 novo_bloco:
 	lea 16(%r8), %rax # %r8 + 16 eh retornado
@@ -200,6 +188,10 @@ novo_bloco:
 	jle return_alocaMem
 	addq $16, %r8 # bloco livre sera partido em dois
 	addq -8(%r8), %r8
+	cmpq $1, %r10
+	jne nao_atualiza_ultimo
+	movq %r8, iniUltimoBloco
+nao_atualiza_ultimo:
 	movq $0, (%r8)
 	subq $16, %r9
 	movq %r9, 8(%r8)
@@ -214,8 +206,11 @@ return_alocaMem:
 imprimeMapa: # sem parametros
 	pushq %rbp
 	movq %rsp, %rbp
-	subq $16, %rsp 
-	movq topoBlocos, %r12
+	subq $32, %rsp
+	movq %r12, -16(%rbp)
+	movq %r13, -24(%rbp)
+	movq %r14, -32(%rbp)
+	movq topoBrk, %r12
 	movq inicioHeap, %r13
 while_imprime:
 	cmpq %r12, %r13
@@ -239,9 +234,9 @@ imprime_menos:
 while_mais_menos:
 	cmpq $0, %r14
 	je fora_while_mais_menos
-	movq %rdi, -16(%rbp)
+	movq %rdi, -8(%rbp)
 	call printf
-	movq -16(%rbp), %rdi
+	movq -8(%rbp), %rdi
 	dec %r14
 	jmp while_mais_menos
 fora_while_mais_menos:
@@ -252,7 +247,10 @@ fora_while_imprime:
 	movq $quebraLinha, %rdi
 	call printf
 return_imprimeMapa:
-	addq $16, %rsp
+	movq -16(%rbp), %r12
+	movq -24(%rbp), %r13
+	movq -32(%rbp), %r14
+	addq $32, %rsp
 	popq %rbp
 	ret
 	
