@@ -42,7 +42,7 @@ finalizaAlocador: # sem parametros
 	popq %rbp
 	ret
 # =========================================================================== #
-# Testa se endereco eh maior ou igual a inicioHeap    					  #
+# Testa se endereco eh maior ou igual a inicioHeap                            #
 # =========================================================================== #
 enderecoMaiorIgualIni:
 	push %rbp
@@ -58,7 +58,7 @@ fora_enderecoMaiorIgualIni:
 	pop %rbp
 	ret
 # =========================================================================== #
-# Testa se endereco eh menor ou igual a topoBrk   					  #
+# Testa se endereco eh menor ou igual a topoBrk                               #
 # =========================================================================== #
 enderecoMenorIgualFim:
 	push %rbp
@@ -79,41 +79,60 @@ fora_enderecoMenorIgualFim:
 liberaMem: # void*
 	pushq %rbp
 	movq %rsp, %rbp
-	subq $16, %rsp
-	# verifica endereco	
-	pushq %rdi
-	subq $16, %rdi
+	subq $48, %rsp
+	movq %r12, -16(%rbp)
+	movq %r13, -24(%rbp)
+	movq %r14, -32(%rbp)
+	movq %r15, -40(%rbp)
+	movq %rdi, -8(%rbp)
 	call enderecoMaiorIgualIni
-	pop %rdi
-	cmpq $0, %rax
-	je return_liberaMem
-	pushq %rdi
-	call enderecoMenorIgualFim
-	pop %rdi
-	cmpq $0, %rax
-	je return_liberaMem
-	# endereco valido
-	movq $0, -16(%rdi)
-	movq -8(%rdi), %r10
-	addq %r10, %rdi
-	# verifica se nao eh ultimo bloco
-	pushq %r10
-	pushq %rdi
-	call enderecoMenorIgualFim
-	pop %rdi
-	pop %r10
-	cmpq $0, %rax
-	je return_liberaMem
-	cmpq $0, (%rdi)
+	movq -8(%rbp), %rdi
+	cmpq $1, %rax
 	jne return_liberaMem
-	# junta dois blocos consecutivos
-	movq 8(%rdi), %r11
-	subq %r10, %rdi
-	subq $8, %rdi
-	addq $16, %r11
-	addq %r11, (%rdi)
+	call enderecoMenorIgualFim
+	movq -8(%rbp), %rdi
+	cmpq $1, %rax
+	jne return_liberaMem
+	movq $0, -16(%rdi) # libera bloco
+	movq inicioHeap, %r12
+	movq %r12, %r14
+	movq $-16, %r15 # %r15 tera tamanho do novo bloco
+while_junta:
+	cmpq $0, (%r12)
+	jne bloco_ocupado
+	addq 8(%r12), %r15
+	addq $16, %r15
+	jmp apos_bloco_ocupado
+bloco_ocupado:
+	movq $0, %r15
+	lea 16(%r12), %r14
+	addq -8(%r14), %r14
+apos_bloco_ocupado:
+	addq $16, %r12
+	cmpq %r12, %rdi
+	je fora_while_junta
+	addq -8(%r12), %r12
+	jmp while_junta
+fora_while_junta:
+	subq $16, %r12
+	cmpq iniUltimoBloco, %r12
+	je bloco_eh_ultimo
+	addq $16, %r12
+	addq -8(%r12), %r12
+	cmpq $0, (%r12)
+	jne proximo_nao_esta_livre
+	addq 8(%r12), %r15
+	addq $16, %r15
+proximo_nao_esta_livre:
+bloco_eh_ultimo:
+	movq $0, (%r14)
+	movq %r15, 8(%r14)
 return_liberaMem:
-	addq $16, %rsp
+	movq -16(%rbp), %r12
+	movq -24(%rbp), %r13
+	movq -32(%rbp), %r14
+	movq -40(%rbp), %r15
+	addq $48, %rsp
 	popq %rbp
 	ret
 # =========================================================================== #
@@ -177,8 +196,13 @@ fora_loop_calcula_brk:
 	movq $1, %r10
 	jmp novo_bloco
 bloco_encontrado:
-	movq $0, %r10
 	movq 8(%r8), %r9
+	cmpq iniUltimoBloco, %r8
+	jne bloco_encontrado_nao_eh_ultimo
+	movq $1, %r10
+	jmp novo_bloco
+bloco_encontrado_nao_eh_ultimo:
+	movq $0, %r10
 novo_bloco:
 	lea 16(%r8), %rax # %r8 + 16 eh retornado
 	movq $1, (%r8)
