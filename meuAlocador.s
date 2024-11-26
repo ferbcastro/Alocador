@@ -96,12 +96,12 @@ liberaMem: # void*
 	movq $0, -16(%rdi) # libera bloco
 	movq inicioHeap, %r12
 	movq %r12, %r14
-	movq $-16, %r15 # %r15 tera tamanho do novo bloco
+	movq $0, %r15 # %r15 tera tamanho do novo bloco
 while_junta:
 	cmpq $0, (%r12)
 	jne bloco_ocupado
 	addq 8(%r12), %r15
-	addq $16, %r15
+	addq $16, %r15 # adiciona bloco gerencial no espaco livre
 	jmp apos_bloco_ocupado
 bloco_ocupado:
 	movq $0, %r15
@@ -114,6 +114,7 @@ apos_bloco_ocupado:
 	addq -8(%r12), %r12
 	jmp while_junta
 fora_while_junta:
+	subq $16, %r15 # remove um bloco gerencial do espaco livre
 	subq $16, %r12
 	cmpq iniUltimoBloco, %r12
 	je bloco_eh_ultimo
@@ -184,7 +185,6 @@ loop_calcula_brk:
 	jle fora_loop_calcula_brk
 	addq $4096, %rdx
 	addq $4096, %r9
-	movq $1, %r10
 	jmp loop_calcula_brk
 fora_loop_calcula_brk:
 	movq %rdi, -8(%rbp)
@@ -209,17 +209,20 @@ novo_bloco:
 	movq %rdi, 8(%r8)
 	subq %rdi, %r9
 	cmpq $16, %r9
-	jle return_alocaMem
+	jle bloco_nao_partido
 	addq $16, %r8 # bloco livre sera partido em dois
 	addq -8(%r8), %r8
+	movq $0, (%r8)
+	subq $16, %r9
+	movq %r9, 8(%r8)
+	jmp apos_bloco_nao_partido
+bloco_nao_partido:
+	addq %r9, 8(%r8)
+apos_bloco_nao_partido:
 	cmpq $1, %r10
 	jne nao_atualiza_ultimo
 	movq %r8, iniUltimoBloco
 nao_atualiza_ultimo:
-	movq $0, (%r8)
-	subq $16, %r9
-	movq %r9, 8(%r8)
-	jmp return_alocaMem
 return_alocaMem:
 	addq $16, %rsp
 	popq %rbp
@@ -268,6 +271,8 @@ fora_while_mais_menos:
 	addq -8(%r13), %r13
 	jmp while_imprime
 fora_while_imprime:
+	movq $quebraLinha, %rdi
+	call printf
 	movq $quebraLinha, %rdi
 	call printf
 return_imprimeMapa:
